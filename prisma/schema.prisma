@@ -1,0 +1,535 @@
+// Product Lifecycle, QC & Production Documentation Platform
+// Prisma schema implementing the approved architecture (Section B of architecture doc)
+//
+// Design rules enforced here:
+// - UUID primary keys everywhere. Human-readable codes (productId, observationCode,
+//   batchCode) are unique indexed fields, never primary keys.
+// - Nothing that represents approved/historical data is ever updated in place.
+//   A "change" to an approved ProductVersion or MasterSample is a new row.
+// - Every content table carries createdBy / createdAt for traceability.
+// - AuditLog is append-only at the application layer (no role is granted update/delete).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity & Access
+// ---------------------------------------------------------------------------
+
+enum RoleName {
+  ADMINISTRATOR
+  PRODUCT_DESIGNER
+  QUALITY_CONTROL
+  PRODUCTION
+  ASSEMBLY_INSTALLATION
+  PROJECT_MANAGER
+  VIEWER
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        RoleName @unique
+  permissions Json     @default("{}")
+  users       User[]
+  createdAt   DateTime @default(now())
+
+  @@map("roles")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  roleId       String
+  role         Role     @relation(fields: [roleId], references: [id])
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Reverse relations (traceability — who did what)
+  designedProducts     Product[]           @relation("ProductDesigner")
+  createdVersions      ProductVersion[]    @relation("VersionCreatedBy")
+  approvedMasters      MasterSample[]      @relation("MasterApprovedBy")
+  managedBatches       ProductionBatch[]   @relation("BatchProductionManager")
+  createdObservations  Observation[]       @relation("ObservationCreatedBy")
+  assignedObservations Observation[]       @relation("ObservationAssignedTo")
+  resolvedObservations Observation[]       @relation("ObservationResolvedBy")
+  approvedObservations Observation[]       @relation("ObservationApprovedBy")
+  uploadedMedia        Media[]             @relation("MediaUploadedBy")
+  uploadedDocuments    Document[]          @relation("DocumentUploadedBy")
+  createdAnnotations   Annotation[]        @relation("AnnotationCreatedBy")
+  approvals            Approval[]          @relation("ApprovalApprovedBy")
+  correctiveActions    CorrectiveAction[]  @relation("CorrectiveActionAssignedTo")
+  comments             Comment[]           @relation("CommentCreatedBy")
+  auditLogs            AuditLog[]          @relation("AuditLogUser")
+  measurements         Measurement[]       @relation("MeasurementCreatedBy")
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Customers & Projects
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id          String    @id @default(uuid())
+  name        String
+  contactInfo Json?
+  createdAt   DateTime  @default(now())
+  projects    Project[]
+
+  @@map("customers")
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+model Project {
+  id         String        @id @default(uuid())
+  name       String
+  customerId String
+  customer   Customer      @relation(fields: [customerId], references: [id])
+  status     ProjectStatus @default(ACTIVE)
+  createdAt  DateTime      @default(now())
+  products   Product[]
+
+  @@map("projects")
+}
+
+// ---------------------------------------------------------------------------
+// Products & Versioning
+// ---------------------------------------------------------------------------
+
+enum ProductStatus {
+  FIRST_PROTOTYPE
+  PROTOTYPE
+  DEVELOPMENT
+  PRE_PRODUCTION
+  MASTER_SAMPLE
+  PRODUCTION
+  QUALITY_CONTROL
+  DELIVERY
+  ASSEMBLY_INSTALLATION
+  COMPLETED
+  SERVICE_CLAIM
+}
+
+model Product {
+  id                    String         @id @default(uuid())
+  productId             String         @unique // e.g. CHR-00482 — permanent, human-readable
+  productNumber         String
+  name                  String
+  category              String
+  projectId             String
+  project               Project        @relation(fields: [projectId], references: [id])
+  designerId            String?
+  designer              User?          @relation("ProductDesigner", fields: [designerId], references: [id])
+  status                ProductStatus  @default(FIRST_PROTOTYPE)
+  currentVersionId      String?        @unique
+  currentVersion        ProductVersion? @relation("ProductCurrentVersion", fields: [currentVersionId], references: [id])
+  currentMasterSampleId String?        @unique
+  currentMasterSample   MasterSample?  @relation("ProductCurrentMasterSample", fields: [currentMasterSampleId], references: [id])
+  createdById           String
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  tags                  ProductTag[]
+
+  versions          ProductVersion[]   @relation("ProductToVersions")
+  masterSamples     MasterSample[]
+  productionBatches ProductionBatch[]
+  observations      Observation[]
+  media             Media[]
+  documents         Document[]
+
+  @@map("products")
+}
+
+model ProductVersion {
+  id             String   @id @default(uuid())
+  productId      String
+  product        Product  @relation("ProductToVersions", fields: [productId], references: [id])
+  versionNumber  String // V1, V2, V3 ...
+  versionType    ProductStatus
+  description    String?
+  changeSummary  String?
+  dimensions     Json     @default("{}") // structured, validated at app layer
+  materials      Json     @default("{}")
+  finishes       Json     @default("{}")
+  components     Json     @default("{}")
+  specifications Json     @default("{}")
+  createdById    String
+  createdBy      User     @relation("VersionCreatedBy", fields: [createdById], references: [id])
+  createdAt      DateTime @default(now())
+  // Immutable once created: application layer must forbid updates to
+  // dimensions/materials/finishes/components/specifications after creation.
+  // A "change" always inserts a new ProductVersion row.
+  currentForProduct Product? @relation("ProductCurrentVersion")
+
+  masterSample MasterSample?
+  media        Media[]
+  documents    Document[]
+  observations Observation[]
+  measurements Measurement[]
+
+  @@unique([productId, versionNumber])
+  @@map("product_versions")
+}
+
+// ---------------------------------------------------------------------------
+// Master Samples
+// ---------------------------------------------------------------------------
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model MasterSample {
+  id                  String         @id @default(uuid())
+  productId           String
+  product             Product        @relation(fields: [productId], references: [id])
+  productVersionId    String         @unique
+  productVersion      ProductVersion @relation(fields: [productVersionId], references: [id])
+  masterVersionNumber String // Master V1, Master V2 ...
+  approvedById        String?
+  approvedBy          User?          @relation("MasterApprovedBy", fields: [approvedById], references: [id])
+  approvedDate        DateTime?
+  approvalStatus      ApprovalStatus @default(PENDING)
+  approvalComments    String?
+  isCurrent           Boolean        @default(false)
+  createdAt           DateTime       @default(now())
+
+  productionBatches ProductionBatch[]
+  measurements      Measurement[]
+  currentForProduct Product? @relation("ProductCurrentMasterSample")
+
+  @@unique([productId, masterVersionNumber])
+  @@map("master_samples")
+}
+
+// ---------------------------------------------------------------------------
+// Production
+// ---------------------------------------------------------------------------
+
+enum BatchStatus {
+  PLANNED
+  IN_PRODUCTION
+  COMPLETED
+  ON_HOLD
+}
+
+model ProductionBatch {
+  id                  String       @id @default(uuid())
+  batchCode           String       @unique // e.g. 2026-08-003
+  productId           String
+  product             Product      @relation(fields: [productId], references: [id])
+  masterSampleId      String
+  masterSample        MasterSample @relation(fields: [masterSampleId], references: [id])
+  productionDate      DateTime
+  productionLocation  String?
+  supplier             String?
+  quantity            Int
+  productionManagerId String?
+  productionManager   User?        @relation("BatchProductionManager", fields: [productionManagerId], references: [id])
+  status              BatchStatus  @default(PLANNED)
+  notes               String?
+  createdAt           DateTime     @default(now())
+
+  observations Observation[]
+  measurements Measurement[]
+  media        Media[]
+
+  @@map("production_batches")
+}
+
+// ---------------------------------------------------------------------------
+// Measurements (tolerance calculation)
+// ---------------------------------------------------------------------------
+
+enum MeasurementResult {
+  PASS
+  WARNING
+  FAIL
+}
+
+enum MeasurementUnit {
+  MM
+  CM
+  M
+  KG
+  DEGREES
+}
+
+model Measurement {
+  id                String            @id @default(uuid())
+  name              String
+  unit              MeasurementUnit
+  referenceValue    Float
+  toleranceLower    Float
+  toleranceUpper    Float
+  measuredValue     Float
+  result            MeasurementResult // computed server-side at write time — never hand-entered
+  notes             String?
+  productVersionId  String?
+  productVersion    ProductVersion?   @relation(fields: [productVersionId], references: [id])
+  masterSampleId    String?
+  masterSample      MasterSample?     @relation(fields: [masterSampleId], references: [id])
+  productionBatchId String?
+  productionBatch   ProductionBatch?  @relation(fields: [productionBatchId], references: [id])
+  observationId     String?
+  observation       Observation?      @relation(fields: [observationId], references: [id])
+  createdById       String
+  createdBy         User              @relation("MeasurementCreatedBy", fields: [createdById], references: [id])
+  createdAt         DateTime          @default(now())
+  photoMediaId      String?
+  photo             Media?            @relation(fields: [photoMediaId], references: [id])
+
+  @@map("measurements")
+}
+
+// ---------------------------------------------------------------------------
+// Quality Observations
+// ---------------------------------------------------------------------------
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ObservationStatus {
+  NEW
+  CORRECTIVE_ACTION_REQUIRED
+  IN_PROGRESS
+  PENDING
+  FIXED
+  APPROVED
+  REJECTED
+  CLOSED
+}
+
+enum ProductLocation {
+  BACK
+  SEAT
+  ARMREST
+  LEG
+  FRAME
+  TABLETOP
+  EDGE
+  JOINT
+  SURFACE
+  UNDERSIDE
+  INTERIOR
+  OTHER
+}
+
+model DefectCategory {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  subcategories String[] @default([])
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  @@map("defect_categories")
+}
+
+model Observation {
+  id                String            @id @default(uuid())
+  observationCode   String            @unique // e.g. OBS-00183
+  productId         String
+  product           Product           @relation(fields: [productId], references: [id])
+  productVersionId  String
+  productVersion    ProductVersion    @relation(fields: [productVersionId], references: [id])
+  productionBatchId String?
+  productionBatch   ProductionBatch?  @relation(fields: [productionBatchId], references: [id])
+  category          String
+  subcategory       String?
+  description       String
+  severity          Severity
+  status            ObservationStatus @default(NEW)
+  location          ProductLocation
+  locationDetail    String?
+  assignedToId      String?
+  assignedTo        User?             @relation("ObservationAssignedTo", fields: [assignedToId], references: [id])
+  dueDate           DateTime?
+  resolution        String?
+  resolvedById      String?
+  resolvedBy        User?             @relation("ObservationResolvedBy", fields: [resolvedById], references: [id])
+  resolvedDate      DateTime?
+  approvedById      String?
+  approvedBy        User?             @relation("ObservationApprovedBy", fields: [approvedById], references: [id])
+  approvedDate      DateTime?
+  createdById       String
+  createdBy         User              @relation("ObservationCreatedBy", fields: [createdById], references: [id])
+  createdAt         DateTime          @default(now())
+
+  media             Media[]
+  measurements      Measurement[]
+  correctiveActions CorrectiveAction[]
+  comments          Comment[]
+
+  @@map("observations")
+}
+
+model CorrectiveAction {
+  id            String    @id @default(uuid())
+  observationId String
+  observation   Observation @relation(fields: [observationId], references: [id])
+  description   String
+  assignedToId  String?
+  assignedTo    User?     @relation("CorrectiveActionAssignedTo", fields: [assignedToId], references: [id])
+  status        ObservationStatus @default(NEW)
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@map("corrective_actions")
+}
+
+// ---------------------------------------------------------------------------
+// Media & Documents
+// ---------------------------------------------------------------------------
+
+model Media {
+  id                String          @id @default(uuid())
+  storageKey        String // pointer into object storage — never the binary itself
+  thumbnailKey      String?
+  productId         String
+  product           Product         @relation(fields: [productId], references: [id])
+  productVersionId  String?
+  productVersion    ProductVersion? @relation(fields: [productVersionId], references: [id])
+  productionBatchId String?
+  productionBatch   ProductionBatch? @relation(fields: [productionBatchId], references: [id])
+  observationId     String?
+  observation       Observation?    @relation(fields: [observationId], references: [id])
+  uploadedById      String
+  uploadedBy        User            @relation("MediaUploadedBy", fields: [uploadedById], references: [id])
+  uploadedAt        DateTime        @default(now())
+  imageType         String?
+  description       String?
+  locationArea      ProductLocation?
+  isMasterReference Boolean         @default(false)
+  parentMediaId     String? // set when this row is an annotated copy of an original
+  parentMedia       Media?          @relation("MediaAnnotatedFrom", fields: [parentMediaId], references: [id])
+  annotatedCopies   Media[]         @relation("MediaAnnotatedFrom")
+
+  annotations  Annotation[]
+  measurements Measurement[]
+
+  @@map("media")
+}
+
+enum AnnotationType {
+  CIRCLE
+  ARROW
+  LINE
+  FREEHAND
+  TEXT
+}
+
+model Annotation {
+  id          String         @id @default(uuid())
+  mediaId     String
+  media       Media          @relation(fields: [mediaId], references: [id])
+  type        AnnotationType
+  geometry    Json // coordinates/path data
+  textLabel   String?
+  createdById String
+  createdBy   User           @relation("AnnotationCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime       @default(now())
+
+  @@map("annotations")
+}
+
+model Document {
+  id               String          @id @default(uuid())
+  storageKey       String
+  productId        String
+  product          Product         @relation(fields: [productId], references: [id])
+  productVersionId String?
+  productVersion   ProductVersion? @relation(fields: [productVersionId], references: [id])
+  documentType     String
+  uploadedById     String
+  uploadedBy       User            @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+  uploadedAt       DateTime        @default(now())
+  deletedAt        DateTime? // soft delete only — never hard-deleted
+
+  @@map("documents")
+}
+
+// ---------------------------------------------------------------------------
+// Approvals, Comments, Tags, Audit
+// ---------------------------------------------------------------------------
+
+model Approval {
+  id           String         @id @default(uuid())
+  entityType   String // "master_sample" | "product_version" | "corrective_action"
+  entityId     String
+  approvedById String
+  approvedBy   User           @relation("ApprovalApprovedBy", fields: [approvedById], references: [id])
+  approvedDate DateTime       @default(now())
+  status       ApprovalStatus
+  comments     String?
+
+  @@map("approvals")
+}
+
+model Comment {
+  id            String       @id @default(uuid())
+  entityType    String
+  entityId      String
+  body          String
+  createdById   String
+  createdBy     User         @relation("CommentCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime     @default(now())
+  observationId String?
+  observation   Observation? @relation(fields: [observationId], references: [id])
+
+  @@map("comments")
+}
+
+model Tag {
+  id       String       @id @default(uuid())
+  name     String       @unique
+  products ProductTag[]
+
+  @@map("tags")
+}
+
+model ProductTag {
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  tagId     String
+  tag       Tag     @relation(fields: [tagId], references: [id])
+
+  @@id([productId, tagId])
+  @@map("product_tags")
+}
+
+// Append-only. No role is ever granted UPDATE or DELETE on this table.
+model AuditLog {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation("AuditLogUser", fields: [userId], references: [id])
+  action        String // e.g. "APPROVE_MASTER_SAMPLE", "CHANGE_STATUS"
+  objectType    String
+  objectId      String
+  previousValue Json?
+  newValue      Json?
+  createdAt     DateTime @default(now())
+
+  @@index([objectType, objectId])
+  @@map("audit_logs")
+}
