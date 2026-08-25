@@ -1,10 +1,14 @@
+import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { authConfig } from "@/lib/auth.config";
 
-// Route-level gate: anything under (dashboard) or (mobile) requires a
-// signed-in session. Fine-grained permission checks (per role) happen
-// inside each route/server action via lib/authorize.ts — this middleware
-// only blocks anonymous access.
+// Deliberately built from authConfig directly, NOT from lib/auth.ts.
+// Middleware runs in the Edge Runtime, which cannot run Prisma — importing
+// lib/auth.ts here would pull the database client into a bundle that can
+// never execute it. This instance only has enough config to read/validate
+// the session JWT, which is all middleware needs to do.
+const { auth } = NextAuth(authConfig);
+
 export default auth((req) => {
   const isLoggedIn = !!req.auth;
   const isAuthRoute =

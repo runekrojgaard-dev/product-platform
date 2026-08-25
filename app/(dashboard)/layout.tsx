@@ -4,7 +4,7 @@ import { auth, signOut } from "@/lib/auth";
 import { roleHasPermission } from "@/lib/permissions";
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", permission: null as const },
+  { href: "/dashboard", label: "Dashboard", permission: null },
   { href: "/products", label: "Products", permission: "product.view" as const },
   { href: "/projects", label: "Projects", permission: "project.view" as const },
   { href: "/quality", label: "Quality", permission: "observation.view" as const },

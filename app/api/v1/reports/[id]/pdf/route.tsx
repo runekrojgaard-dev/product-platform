@@ -8,7 +8,8 @@ import { ProductQualityReport, type ReportData } from "@/lib/reports/product-qua
 // :id is the Product's database id. If a batch is specified, the report is
 // scoped to that batch's measurements/observations; otherwise it covers the
 // whole product to date.
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = await paramsPromise;
   try {
     await requirePermission("report.view");
     const session = await requireSession();

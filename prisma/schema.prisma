@@ -15,7 +15,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // ---------------------------------------------------------------------------
@@ -265,11 +264,11 @@ enum MeasurementResult {
 }
 
 enum MeasurementUnit {
-  MM
-  CM
-  M
-  KG
-  DEGREES
+  mm
+  cm
+  m
+  kg
+  degrees
 }
 
 model Measurement {

@@ -2,18 +2,20 @@ import { redirect } from "next/navigation";
 import { signIn } from "@/lib/auth";
 import { AuthError } from "next-auth";
 
-export default function LoginPage({
+export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: { callbackUrl?: string; error?: string };
+  searchParams: Promise<{ callbackUrl?: string; error?: string }>;
 }) {
+  const resolvedSearchParams = await searchParams;
+
   async function authenticate(formData: FormData) {
     "use server";
     try {
       await signIn("credentials", {
         email: formData.get("email"),
         password: formData.get("password"),
-        redirectTo: searchParams?.callbackUrl || "/dashboard",
+        redirectTo: resolvedSearchParams?.callbackUrl || "/dashboard",
       });
     } catch (err) {
       if (err instanceof AuthError) {
@@ -31,7 +33,7 @@ export default function LoginPage({
           Product Lifecycle &amp; Quality Platform
         </p>
 
-        {searchParams?.error && (
+        {resolvedSearchParams?.error && (
           <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
             Invalid email or password.
           </div>

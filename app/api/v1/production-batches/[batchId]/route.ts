@@ -4,7 +4,8 @@ import { requirePermission, UnauthorizedError, ForbiddenError } from "@/lib/auth
 import { writeAuditLog } from "@/lib/audit";
 import { updateProductionBatchSchema } from "@/lib/validation/production-batch";
 
-export async function PATCH(req: NextRequest, { params }: { params: { batchId: string } }) {
+export async function PATCH(req: NextRequest, { params: paramsPromise }: { params: Promise<{ batchId: string }> }) {
+  const params = await paramsPromise;
   try {
     const { userId } = await requirePermission("production.batch.manage");
 

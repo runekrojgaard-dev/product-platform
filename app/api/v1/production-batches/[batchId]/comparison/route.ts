@@ -7,7 +7,8 @@ import { requirePermission, UnauthorizedError, ForbiddenError } from "@/lib/auth
 // name, so a desktop user can see Master vs. Production side by side
 // (Section 18). Each row already carries its own computed PASS/WARNING/FAIL
 // from when it was recorded — this endpoint only joins them for display.
-export async function GET(_req: NextRequest, { params }: { params: { batchId: string } }) {
+export async function GET(_req: NextRequest, { params: paramsPromise }: { params: Promise<{ batchId: string }> }) {
+  const params = await paramsPromise;
   try {
     await requirePermission("product.view");
 

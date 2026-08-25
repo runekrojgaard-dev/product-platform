@@ -5,7 +5,8 @@ import { writeAuditLog } from "@/lib/audit";
 import { createObservationSchema } from "@/lib/validation/observation";
 import { generateObservationCode } from "@/lib/observation-code";
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = await paramsPromise;
   try {
     await requirePermission("observation.view");
 
@@ -38,7 +39,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = await paramsPromise;
   try {
     const { userId } = await requirePermission("observation.create");
 

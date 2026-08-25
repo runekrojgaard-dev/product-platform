@@ -4,7 +4,8 @@ import { requirePermission, UnauthorizedError, ForbiddenError } from "@/lib/auth
 import { writeAuditLog } from "@/lib/audit";
 import { updateProjectSchema } from "@/lib/validation/project";
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = await paramsPromise;
   try {
     const { userId } = await requirePermission("project.manage");
 

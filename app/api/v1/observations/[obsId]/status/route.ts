@@ -7,7 +7,8 @@ import { writeAuditLog } from "@/lib/audit";
 import { transitionStatusSchema } from "@/lib/validation/observation";
 import { isValidTransition, requiresApprovalPermission, type ObservationStatus } from "@/lib/observation-workflow";
 
-export async function POST(req: NextRequest, { params }: { params: { obsId: string } }) {
+export async function POST(req: NextRequest, { params: paramsPromise }: { params: Promise<{ obsId: string }> }) {
+  const params = await paramsPromise;
   try {
     // Baseline: must at least be able to view observations to touch one.
     // Finer-grained role checks happen below based on the specific

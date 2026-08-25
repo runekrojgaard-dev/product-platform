@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requirePermission, UnauthorizedError, ForbiddenError } from "@/lib/authorize";
 import { writeAuditLog } from "@/lib/audit";
 import { createAnnotationsSchema } from "@/lib/validation/annotation";
 
-export async function GET(_req: NextRequest, { params }: { params: { mediaId: string } }) {
+export async function GET(_req: NextRequest, { params: paramsPromise }: { params: Promise<{ mediaId: string }> }) {
+  const params = await paramsPromise;
   try {
     await requirePermission("product.view");
 
@@ -20,7 +22,8 @@ export async function GET(_req: NextRequest, { params }: { params: { mediaId: st
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: { mediaId: string } }) {
+export async function POST(req: NextRequest, { params: paramsPromise }: { params: Promise<{ mediaId: string }> }) {
+  const params = await paramsPromise;
   try {
     // This is called against the NEW annotated-copy Media row (created via
     // the normal upload endpoint with parentMediaId set to the original) —
@@ -47,7 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: { mediaId: st
             data: {
               mediaId: media.id,
               type: a.type,
-              geometry: a.geometry,
+              geometry: a.geometry as Prisma.InputJsonValue,
               textLabel: a.textLabel,
               createdById: userId,
             },

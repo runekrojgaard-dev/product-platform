@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db";
 import { requirePermission, UnauthorizedError, ForbiddenError } from "@/lib/authorize";
 import { getStorageDriver } from "@/lib/storage";
 
-export async function GET(_req: NextRequest, { params }: { params: { mediaId: string } }) {
+export async function GET(_req: NextRequest, { params: paramsPromise }: { params: Promise<{ mediaId: string }> }) {
+  const params = await paramsPromise;
   try {
     await requirePermission("product.view");
 

@@ -11,10 +11,11 @@ type ComponentEntry = { name: string; description?: string };
 type SpecEntry = { key: string; value: string };
 
 export default async function VersionDetailPage({
-  params,
+  params: paramsPromise,
 }: {
-  params: { id: string; versionId: string };
+  params: Promise<{ id: string; versionId: string }>;
 }) {
+  const params = await paramsPromise;
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (!roleHasPermission(session.user.role, "product.view")) redirect("/dashboard");

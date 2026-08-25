@@ -4,7 +4,8 @@ import { requirePermission, UnauthorizedError, ForbiddenError } from "@/lib/auth
 import { writeAuditLog } from "@/lib/audit";
 import { decideMasterSampleSchema } from "@/lib/validation/master-sample";
 
-export async function POST(req: NextRequest, { params }: { params: { msId: string } }) {
+export async function POST(req: NextRequest, { params: paramsPromise }: { params: Promise<{ msId: string }> }) {
+  const params = await paramsPromise;
   try {
     const { userId } = await requirePermission("product.mastersample.approve");
 

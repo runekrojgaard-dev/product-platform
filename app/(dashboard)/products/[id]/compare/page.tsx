@@ -4,7 +4,8 @@ import { prisma } from "@/lib/db";
 import { roleHasPermission } from "@/lib/permissions";
 import { CompareClient } from "./compare-client";
 
-export default async function CompareVersionsPage({ params }: { params: { id: string } }) {
+export default async function CompareVersionsPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = await paramsPromise;
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (!roleHasPermission(session.user.role, "product.view")) redirect("/dashboard");

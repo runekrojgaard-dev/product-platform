@@ -4,8 +4,9 @@ import { requirePermission, UnauthorizedError, ForbiddenError } from "@/lib/auth
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string; versionId: string } }
+  { params: paramsPromise }: { params: Promise<{ id: string; versionId: string }> }
 ) {
+  const params = await paramsPromise;
   try {
     await requirePermission("product.view");
 

@@ -6,10 +6,11 @@ import { roleHasPermission } from "@/lib/permissions";
 import { ObservationDetailClient } from "./observation-detail-client";
 
 export default async function ObservationDetailPage({
-  params,
+  params: paramsPromise,
 }: {
-  params: { id: string; obsId: string };
+  params: Promise<{ id: string; obsId: string }>;
 }) {
+  const params = await paramsPromise;
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (!roleHasPermission(session.user.role, "observation.view")) redirect("/dashboard");

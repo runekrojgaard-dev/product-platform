@@ -4,7 +4,8 @@ import { requirePermission, UnauthorizedError, ForbiddenError } from "@/lib/auth
 import { writeAuditLog } from "@/lib/audit";
 import { updateCorrectiveActionSchema } from "@/lib/validation/observation";
 
-export async function PATCH(req: NextRequest, { params }: { params: { caId: string } }) {
+export async function PATCH(req: NextRequest, { params: paramsPromise }: { params: Promise<{ caId: string }> }) {
+  const params = await paramsPromise;
   try {
     const { userId } = await requirePermission("observation.assign");
 

@@ -4,7 +4,8 @@ import { requirePermission, UnauthorizedError, ForbiddenError } from "@/lib/auth
 import { writeAuditLog } from "@/lib/audit";
 import { createCorrectiveActionSchema } from "@/lib/validation/observation";
 
-export async function POST(req: NextRequest, { params }: { params: { obsId: string } }) {
+export async function POST(req: NextRequest, { params: paramsPromise }: { params: Promise<{ obsId: string }> }) {
+  const params = await paramsPromise;
   try {
     const { userId } = await requirePermission("observation.assign");
 

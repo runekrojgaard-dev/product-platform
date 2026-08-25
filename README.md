@@ -352,3 +352,32 @@ This closes out the remaining Section 35 polish items.
   just gives it a screen.
 
 This is now the complete MVP scope from Section 35, end to end.
+
+## Deployment fixes (Next.js 16 + Prisma 7 breaking changes)
+
+Two major version upgrades since this was originally built introduced real
+breaking changes, found and fixed during actual Vercel deployment attempts:
+
+1. **Next.js made dynamic route `params` and `searchParams` async** (a
+   `Promise` instead of a plain object) in every API route and page that
+   uses a `[bracket]` segment — affected 29 files (24 API routes, 5 pages).
+   Each now destructures the incoming value under a temporary name
+   (`paramsPromise`) and awaits it as the first line of the function, so
+   every existing `params.xxx` reference elsewhere in the function keeps
+   working unchanged.
+2. **Prisma 7 removed `url = env("DATABASE_URL")` from schema.prisma** —
+   connection strings now live in `prisma.config.ts` (for the CLI) and are
+   passed as a driver adapter to the `PrismaClient` constructor (for the
+   running app). Added `@prisma/adapter-pg` + `pg`, new `prisma.config.ts`,
+   and rewrote `lib/db.ts` and `prisma/seed.ts` accordingly.
+
+Plus three smaller bugs caught by the same build attempts:
+- `null as const` isn't valid TypeScript (`as const` only works on string/
+  number/boolean/array/object literals) — `app/(dashboard)/layout.tsx`.
+- An annotation's `geometry` field (validated as `Record<string, unknown>`
+  by Zod) needed an explicit cast to `Prisma.InputJsonValue` to satisfy
+  Prisma's stricter JSON input type.
+- The `MeasurementUnit` enum was defined uppercase (`MM`, `CM`...) in the
+  schema while every validation schema and UI dropdown used lowercase
+  (`mm`, `cm`...) — changed the enum to lowercase since far more code
+  already assumed that casing.

@@ -7,8 +7,9 @@ import { ProductsClient } from "./products-client";
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: { projectId?: string };
+  searchParams: Promise<{ projectId?: string }>;
 }) {
+  const resolvedSearchParams = await searchParams;
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (!roleHasPermission(session.user.role, "product.view")) redirect("/dashboard");
@@ -17,7 +18,7 @@ export default async function ProductsPage({
 
   const [products, projects, designers] = await Promise.all([
     prisma.product.findMany({
-      where: searchParams.projectId ? { projectId: searchParams.projectId } : undefined,
+      where: resolvedSearchParams.projectId ? { projectId: resolvedSearchParams.projectId } : undefined,
       select: {
         id: true,
         productId: true,
@@ -59,7 +60,7 @@ export default async function ProductsPage({
         }))}
         projects={projects}
         designers={designers}
-        preselectedProjectId={searchParams.projectId}
+        preselectedProjectId={resolvedSearchParams.projectId}
       />
     </div>
   );

@@ -4,7 +4,8 @@ import { requirePermission, UnauthorizedError, ForbiddenError } from "@/lib/auth
 import { compareVersions } from "@/lib/version-diff";
 
 // GET /api/v1/products/:id/versions/compare?a=<versionId>&b=<versionId>
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = await paramsPromise;
   try {
     await requirePermission("product.view");
 

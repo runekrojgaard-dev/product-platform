@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db";
 import { requireSession, UnauthorizedError } from "@/lib/authorize";
 import { createCommentSchema } from "@/lib/validation/observation";
 
-export async function POST(req: NextRequest, { params }: { params: { obsId: string } }) {
+export async function POST(req: NextRequest, { params: paramsPromise }: { params: Promise<{ obsId: string }> }) {
+  const params = await paramsPromise;
   try {
     // Commenting is intentionally low-friction — anyone who can already see
     // the observation (i.e. is signed in and reached this page) can add

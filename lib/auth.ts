@@ -2,28 +2,15 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
-import type { RoleName } from "@prisma/client";
+import { authConfig } from "@/lib/auth.config";
 
-// Auth.js is configured with the Credentials provider for MVP (email + password).
-// SSO (e.g. Microsoft Entra ID) can be added later as an additional provider
-// without any schema or session-shape changes — see architecture doc Section E.
-
-declare module "next-auth" {
-  interface Session {
-    user: {
-      id: string;
-      email: string;
-      name: string;
-      role: RoleName;
-    };
-  }
-}
+// Full auth setup, including the database-backed Credentials provider.
+// This file is safe to import from API routes and server components
+// (Node.js runtime) but must NEVER be imported from middleware.ts — see
+// lib/auth.config.ts for why.
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: "jwt" },
-  pages: {
-    signIn: "/login",
-  },
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -54,19 +41,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    // Persist role onto the JWT at sign-in so we don't hit the DB on every request.
-    jwt: async ({ token, user }) => {
-      if (user) {
-        token.id = user.id as string;
-        token.role = (user as { role: RoleName }).role;
-      }
-      return token;
-    },
-    session: async ({ session, token }) => {
-      session.user.id = token.id as string;
-      session.user.role = token.role as RoleName;
-      return session;
-    },
-  },
 });

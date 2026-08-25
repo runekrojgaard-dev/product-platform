@@ -4,7 +4,8 @@ import { requirePermission, UnauthorizedError, ForbiddenError } from "@/lib/auth
 import { writeAuditLog } from "@/lib/audit";
 import { updateObservationSchema } from "@/lib/validation/observation";
 
-export async function GET(_req: NextRequest, { params }: { params: { obsId: string } }) {
+export async function GET(_req: NextRequest, { params: paramsPromise }: { params: Promise<{ obsId: string }> }) {
+  const params = await paramsPromise;
   try {
     await requirePermission("observation.view");
 
@@ -47,7 +48,8 @@ export async function GET(_req: NextRequest, { params }: { params: { obsId: stri
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { obsId: string } }) {
+export async function PATCH(req: NextRequest, { params: paramsPromise }: { params: Promise<{ obsId: string }> }) {
+  const params = await paramsPromise;
   try {
     const { userId } = await requirePermission("observation.assign");
 

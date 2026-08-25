@@ -12,10 +12,11 @@ const RESULT_STYLES: Record<string, string> = {
 };
 
 export default async function ProductionComparisonPage({
-  params,
+  params: paramsPromise,
 }: {
-  params: { id: string; batchId: string };
+  params: Promise<{ id: string; batchId: string }>;
 }) {
+  const params = await paramsPromise;
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (!roleHasPermission(session.user.role, "product.view")) redirect("/dashboard");

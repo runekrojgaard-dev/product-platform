@@ -11,7 +11,8 @@ import { PhotoSection } from "./photo-section";
 import { ObservationsSection } from "./observations-section";
 import { MeasurementsSection } from "./measurements-section";
 
-export default async function ProductDetailPage({ params }: { params: { id: string } }) {
+export default async function ProductDetailPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = await paramsPromise;
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (!roleHasPermission(session.user.role, "product.view")) redirect("/dashboard");

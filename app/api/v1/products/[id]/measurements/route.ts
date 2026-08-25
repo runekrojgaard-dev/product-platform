@@ -5,7 +5,8 @@ import { writeAuditLog } from "@/lib/audit";
 import { createMeasurementSchema } from "@/lib/validation/measurement";
 import { computeMeasurementResult } from "@/lib/measurement-tolerance";
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = await paramsPromise;
   try {
     await requirePermission("product.view");
 
@@ -55,7 +56,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = await paramsPromise;
   try {
     const { userId } = await requirePermission("measurement.record");
 
