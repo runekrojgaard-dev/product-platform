@@ -1,4 +1,4 @@
-"use client";
+ª"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -220,8 +220,11 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{
-    createdCount: number;
-    createdNames: string[];
+    createdProjectsCount: number;
+    createdProjects: string[];
+    createdProductsCount: number;
+    createdProducts: string[];
+    photosAttached: number;
     skipped: { rowNumber: number; reason: string }[];
     parseErrors: { rowNumber: number; message: string }[];
   } | null>(null);
@@ -261,9 +264,17 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
             <p className="text-sm text-neutral-500 mb-3">
               Upload an .xlsx file with columns <strong>Project Name</strong>, <strong>Customer</strong>,
               and optionally <strong>Status</strong> (Active / On Hold / Completed / Cancelled — defaults
-              to Active). Customers that don&apos;t exist yet are created automatically. Rows matching an
-              existing project for the same customer are skipped, so re-uploading an updated sheet won&apos;t
-              create duplicates.
+              to Active). Customers that don&apos;t exist yet are created automatically.
+            </p>
+            <p className="text-sm text-neutral-500 mb-3">
+              To also create products, add columns <strong>Product Number</strong>,{" "}
+              <strong>Product Name</strong>, and <strong>Category</strong> (all three together). If you
+              paste a photo directly into a row&apos;s cells in Excel, it&apos;s automatically attached to
+              that row&apos;s product as a reference photo.
+            </p>
+            <p className="text-xs text-neutral-400 mb-3">
+              Re-uploading a sheet won&apos;t create duplicates — existing projects and products (matched
+              by name/number) are skipped.
             </p>
             <input
               type="file"
@@ -285,7 +296,11 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
         {result && (
           <div className="space-y-3">
             <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
-              Created {result.createdCount} project{result.createdCount === 1 ? "" : "s"}.
+              Created {result.createdProjectsCount} project{result.createdProjectsCount === 1 ? "" : "s"},{" "}
+              {result.createdProductsCount} product{result.createdProductsCount === 1 ? "" : "s"}
+              {result.photosAttached > 0 &&
+                ` (${result.photosAttached} with a photo attached)`}
+              .
             </p>
             {result.skipped.length > 0 && (
               <div>
