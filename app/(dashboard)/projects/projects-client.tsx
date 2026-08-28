@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 type Status = "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED";
@@ -31,6 +32,7 @@ export function ProjectsClient({
   initialProjects: ProjectRow[];
   customers: Customer[];
 }) {
+  const router = useRouter();
   const [projects, setProjects] = useState(initialProjects);
   const [customerList, setCustomerList] = useState(customers);
   const [showNewCustomer, setShowNewCustomer] = useState(false);
@@ -38,6 +40,7 @@ export function ProjectsClient({
   const [form, setForm] = useState({ name: "", customerId: customers[0]?.id ?? "" });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   async function handleCreateCustomer() {
     if (!newCustomerName.trim()) return;
@@ -85,6 +88,17 @@ export function ProjectsClient({
 
   return (
     <div className="space-y-8">
+      {canManage && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => setShowImport(true)}
+            className="text-xs font-medium text-neutral-700 border border-neutral-300 rounded px-3 py-1.5 hover:bg-neutral-100"
+          >
+            Import from Excel
+          </button>
+        </div>
+      )}
+
       {canManage && (
         <form
           onSubmit={handleCreateProject}
@@ -187,6 +201,129 @@ export function ProjectsClient({
           )}
         </tbody>
       </table>
+
+      {showImport && (
+        <ImportModal
+          onClose={() => setShowImport(false)}
+          onImported={() => {
+            setShowImport(false);
+            router.refresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{
+    createdCount: number;
+    createdNames: string[];
+    skipped: { rowNumber: number; reason: string }[];
+    parseErrors: { rowNumber: number; message: string }[];
+  } | null>(null);
+
+  async function handleUpload() {
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/v1/projects/import", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Import failed");
+        return;
+      }
+      setResult(data);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-lg w-full p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-neutral-900">Import Projects from Excel</h3>
+          <button onClick={onClose} className="text-sm text-neutral-500 hover:text-neutral-900">
+            Close
+          </button>
+        </div>
+
+        {!result && (
+          <>
+            <p className="text-sm text-neutral-500 mb-3">
+              Upload an .xlsx file with columns <strong>Project Name</strong>, <strong>Customer</strong>,
+              and optionally <strong>Status</strong> (Active / On Hold / Completed / Cancelled — defaults
+              to Active). Customers that don&apos;t exist yet are created automatically. Rows matching an
+              existing project for the same customer are skipped, so re-uploading an updated sheet won&apos;t
+              create duplicates.
+            </p>
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="block w-full text-sm mb-3"
+            />
+            {error && <p className="text-sm text-red-700 mb-3">{error}</p>}
+            <button
+              onClick={handleUpload}
+              disabled={!file || uploading}
+              className="rounded bg-neutral-900 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+            >
+              {uploading ? "Importing…" : "Import"}
+            </button>
+          </>
+        )}
+
+        {result && (
+          <div className="space-y-3">
+            <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
+              Created {result.createdCount} project{result.createdCount === 1 ? "" : "s"}.
+            </p>
+            {result.skipped.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-neutral-600 mb-1">
+                  Skipped ({result.skipped.length}) — already existed:
+                </p>
+                <ul className="text-xs text-neutral-500 space-y-0.5 max-h-32 overflow-y-auto">
+                  {result.skipped.map((s, i) => (
+                    <li key={i}>
+                      Row {s.rowNumber}: {s.reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {result.parseErrors.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-red-600 mb-1">
+                  Rows with errors ({result.parseErrors.length}):
+                </p>
+                <ul className="text-xs text-red-500 space-y-0.5 max-h-32 overflow-y-auto">
+                  {result.parseErrors.map((e, i) => (
+                    <li key={i}>
+                      Row {e.rowNumber}: {e.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <button
+              onClick={onImported}
+              className="rounded bg-neutral-900 text-white text-sm font-medium px-4 py-2"
+            >
+              Done
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
